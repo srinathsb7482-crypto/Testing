@@ -1,0 +1,196 @@
+Apache Installation
+-------------------
+
+1. Copy the below sources into /usr/src directory.
+
+a)httpd-2.4.53.tar.gz
+b)apr-1.7.0.tar.gz
+c)pcre2-10.40.tar.bz2
+d)apr-util-1.6.1.tar.gz
+
+
+2. Then, Extract all the sources under /usr/src directory.
+
+3. go to the apr-1.7.0 dir abd run below commands 
+cd apr-1.7.0
+yum install libtool 
+./configure --host=x86_64-oracle-linux-gnu --build=x86_64-oracle-linux-gnu --prefix=/usr/local/apr-1.7.0 --with-devrandom=/dev/urandom
+make 
+make install 
+ldconfig
+
+4) follow the below commands 
+cd /usr/src/apr-util-1.6.1
+./configure --prefix=/usr/local/apr-util-1.6.1 --with-crypto --with-openssl=/usr/local/openssl --with-apr=/usr/local/apr-1.7.0
+make 
+make test
+make install
+ldconfig 
+
+cd /usr/src/pcre2-10.40/
+./configure --prefix=/usr/local/pcre2
+make
+make test
+make install
+ldconfig
+
+
+5.cd /usr/src/httpd-2.4.53/
+
+./configure --prefix=/usr/local/apache2.4.53 --enable-mpms-shared=all --with-pcre=/usr/local/pcre2 --enable-mods-shared=all --enable-ssl --with-ssl=/usr/local/ssl/bin/openssl --with-apr=/usr/local/apr-1.7.0 --with-apr-util=/usr/local/apr-util-1.6.1 --enable-session-crypto LDFLAGS=-L/usr/local/lib64 
+
+6. If it says any ERRORS like,
+
+i) ERROR-1
+
+    configure: error: pcre-config for libpcre not found. PCRE is required
+
+    then,
+
+       $ cd /usr/src/pcre2-10.40
+
+       $ ./configure --prefix=/usr/local/pcre2
+
+       $ make
+
+       $ make install
+
+./configure --prefix=/usr/local/apache2 --with-included-apr --enable-ssl --with-pcre=/usr/local/pcre2/bin/pcre2-config
+
+
+
+cd /usr/src/httpd-2.4.53/
+
+
+  Now, change the apache configure parameter
+
+    ./configure --prefix=/usr/local/apache2 --with-included-apr --enable-so  --with-ssl=/usr/local/ssl/bin/openssl --enable-ssl=shared  --with-pcre=/usr/local/pcre2/bin/pcre2-config
+
+ii) Error -2 
+checking whether to enable mod_ssl... configure: error: mod_ssl has been requested but can not be built due to prerequisite failures
+
+install below packages 
+
+yum install openssl-devel
+
+then execute  
+./configure --prefix=/usr/local/apache2 --with-included-apr --enable-ssl
+
+
+if the error came means
+------------------------------
+
+ml/apr_xml.c:35:10: fatal error: expat.h: No such file or directory
+   35 | #include <expat.h>
+      |          ^~~~~~~~~
+
+cp expat-2.4.8.tgz /usr/src/expat-2.4.8
+
+
+./configure --prefix=/usr/local/expat
+
+make
+
+make install
+
+cd /usr/src/httpd-2.4.53/
+
+
+  Now, change the apache configure parameter
+
+    ./configure --prefix=/usr/local/apache2 --with-included-apr --enable-so  --with-ssl=/usr/local/ssl/bin/openssl --enable-ssl=shared  --with-pcre=/usr/local/pcre2/bin/pcre2-config --with-expat=/usr/local/expat
+
+
+make
+make install
+
+12. Now, You have successfully installed Apache Web Server. To start Apache server, go to /usr/local/apache2/bin/
+
+     $ /usr/local/apache2.4.53/bin/apachectl -k start
+     if you receive below error message 
+     Error 1:
+     -------
+     httpd: Syntax error on line 144 of /usr/local/apache2.4.53/conf/httpd.conf: Cannot load modules/mod_session_crypto.so into server: /usr/local/apache2.4.53/modules/mod_session_crypto.so: undefined symbol: ap_hook_session_encode
+
+     Solution :
+     ----------
+     #LoadModule session_crypto_module modules/mod_session_crypto.so comment this line  in the httpd.conf
+
+13. First, Change the apache to running as different user. For that, Change the below configuration.
+
+    /usr/local/apache2.4.53/conf/httpd.conf
+
+
+14. Normally, Apache will start the child process and run as "root". But, It is not a good. So, We need to run Apache as a "www-data" user.
+
+    For that,
+
+    search for the below/block lines,
+
+       <IfModule unixd_module>
+
+       User daemon
+       Group daemon
+
+       </IfModule>
+
+    CHANGE TO,
+
+       <IfModule unixd_module>
+
+       User www-data
+       Group www-data
+
+       </IfModule>
+15. Then, go through the configuration file, whatever changes you require do it, execute the " useradd www-data"  command after that restart the apache to affect.
+
+OPEN SSL Configuration in Apache
+
+16. Uncomment the httpd-ssl.conf Include line in the /usr/local/apache2.4.53/conf/httpd.conf file
+   Also, check below line should be in uncomment mode.
+
+   LoadModule ssl_module modules/mod_ssl.so
+   LoadModule socache_shmcb_module modules/mod_socache_shmcb.so
+
+17. Create a certification using openSSL, follow the below steps 
+
+ 1. First create the private key
+     openssl genrsa -out server.key 2048
+
+19. Next, generate a certificate request file (server.csr) using the above server.key file.
+     openssl req -new -key server.key -out server.csr
+
+20. Finally, generate a self signed ssl certificate (server.crt) using the above server.key and server.csr file.
+     openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt -sha256
+
+21. Copy the server.key and server.crt
+
+     $ cp server.key /usr/local/apache2/conf/
+     $ cp server.crt /usr/local/apache2/conf/
+
+22. Start the Apache Web Server and Verify SSL.
+
+    $ telnet localhost 443
+
+23. Now, We need to put the start-up scripts in /etc/init.d/ directory.
+
+    cp /usr/local/apache2.4.53/bin/apachectl /etc/init.d/apache
+
+24. But, status aregument will not work.
+
+    for that, add the below set code in "status" case.
+
+        PID=$(ps -U root | grep "$(basename $HTTPD)" | grep -v 'grep' | awk '{print $1}') || true
+        if [ -n "$PID" ]; then
+                echo "Apache is running (pid $PID)."
+                exit 0
+        else
+                echo "Apache is NOT running."
+                exit 1
+        fi
+
+        ;;
+
+25. Make sure that uncomment the previoud set of lines of "status".
+
+
